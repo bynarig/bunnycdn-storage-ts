@@ -4,11 +4,11 @@
 a small wrapper for the [bunnycdn](https://bunnycdn.com) storage api
 
 # Building
-install dependencies with npm/yarn and then run `npm build` or `yarn build`
+install dependencies with npm/pnpm and then run `npm build` or `pnpm build`
 
 # Usage
-```js
-const BunnyStorage = require('bunnycdn-storage').default;
+```ts
+import BunnyStorage from 'bunnycdn-storage-ts';
 
 // No region specified, defaults to Falkenstein (storage.bunnycdn.com)
 const bunnyStorage = new BunnyStorage('API-KEY', 'STORAGE-ZONE-NAME');

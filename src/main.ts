@@ -1,11 +1,11 @@
-import axios, { AxiosInstance, AxiosPromise, AxiosResponse, ResponseType } from 'axios';
-import { createReadStream, ReadStream } from 'fs';
-import { parse } from 'path';
+import axios, {AxiosInstance, AxiosPromise, AxiosResponse, ResponseType} from 'axios';
+import {createReadStream, ReadStream} from 'fs';
+import {parse} from 'path';
 
 const defaultBaseUrl: string = 'https://storage.bunnycdn.com'
 
 export default class BunnyCDNStorage {
-  private client: AxiosInstance;
+  private readonly client: AxiosInstance;
 
   constructor(apiKey: string, storageZoneName: string, region?: string) {
     const baseURL: string = region ? `https://${region}.storage.bunnycdn.com` : defaultBaseUrl;
@@ -49,13 +49,11 @@ export default class BunnyCDNStorage {
       file = fileOrPath;
     }
 
-    const response = await this.client({
+    return await this.client({
       method: 'PUT',
       url: remotePath,
       data: file
-    })
-
-    return response;
+    });
   }
 
   download(filePath: string, responseType?: ResponseType) : AxiosPromise<any> {
