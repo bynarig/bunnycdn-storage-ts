@@ -1,0 +1,44 @@
+# Source
+src/
+
+# TypeScript config
+tsconfig.json
+tsconfig.esm.json
+
+# Development configs
+.eslintrc.json
+.prettierrc
+.editorconfig
+
+# Git
+.git
+.gitignore
+
+# CI/CD
+.github
+.travis.yml
+.gitlab-ci.yml
+
+# Tests
+test/
+tests/
+__tests__/
+coverage/
+.nyc_output/
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Editor directories and files
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS generated files
+.DS_Store
+Thumbs.db

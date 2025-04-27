@@ -1,67 +1,198 @@
-import axios, {AxiosInstance, AxiosPromise, AxiosResponse, ResponseType} from 'axios';
-import {createReadStream, ReadStream} from 'fs';
-import {parse} from 'path';
+import { createReadStream } from "fs";
+import { parse } from "path";
 
-const defaultBaseUrl: string = 'https://storage.bunnycdn.com'
+type Region = "us" | "ny" | "la" | "sg" | "se" | "br" | "jh" | "syd";
+type ResponseType = "arraybuffer" | "blob" | "document" | "json" | "text" | "stream";
+
+// Helper function to convert Headers to Record<string, string>
+function headersToRecord(headers: Headers): Record<string, string> {
+	const result: Record<string, string> = {};
+	headers.forEach((value, key) => {
+		result[key] = value;
+	});
+	return result;
+}
+
+interface FetchResponse<T = any> {
+	data: T;
+	status: number;
+	statusText: string;
+	headers: Record<string, string>;
+	config: any;
+}
+
+type FetchPromise<T = any> = Promise<FetchResponse<T>>;
 
 export default class BunnyCDNStorage {
-  private readonly client: AxiosInstance;
+	private readonly baseURL: string;
+	private readonly headers: Record<string, string>;
+	private readonly storageZoneName: string;
 
-  constructor(apiKey: string, storageZoneName: string, region?: string) {
-    const baseURL: string = region ? `https://${region}.storage.bunnycdn.com` : defaultBaseUrl;
+	constructor(apiKey: string, storageZoneName: string, region?: Region) {
+		const baseHost: string = region
+			? `https://${region}.storage.bunnycdn.com`
+			: "https://storage.bunnycdn.com";
+		this.baseURL = `${baseHost}/${storageZoneName}/`;
+		this.headers = {
+			AccessKey: apiKey,
+			"Content-Type": "application/octet-stream",
+		};
+		this.storageZoneName = storageZoneName;
+	}
 
-    this.client = axios.create({
-      baseURL: `${baseURL}/${storageZoneName}/`,
-      headers: {
-        AccessKey: apiKey
-      },
-      maxContentLength: Infinity,
-      maxBodyLength: Infinity,
-    })
+	async list(path?: string): Promise<FetchResponse<any>> {
+		const url = new URL(path || "", this.baseURL);
 
-  }
+		try {
+			const response = await fetch(url.toString(), {
+				method: "GET",
+				headers: this.headers,
+			});
 
-  list(path?: string) : AxiosPromise<any> {
-    return this.client({
-      method: 'GET',
-      url: path
-    })
-  }
+			if (!response.ok) {
+				throw new Error(`HTTP error! Status: ${response.status}`);
+			}
 
-  delete(path?: string) : AxiosPromise<any> {
-    return this.client({
-      method: 'DELETE',
-      url: path
-    })
-  }
+			const data = await response.json();
 
-  async upload(file: Buffer, remotePath?: string) : Promise<AxiosResponse>;
-  async upload(filePath: string, remotePath?: string) : Promise<AxiosResponse>;
+			return {
+				data,
+				status: response.status,
+				statusText: response.statusText,
+				headers: headersToRecord(response.headers),
+				config: { url: url.toString(), method: "GET" },
+			};
+		} catch (error) {
+			throw error;
+		}
+	}
 
-  async upload(fileOrPath: Buffer | string, remotePath?: string) : Promise<AxiosResponse> {
-    let file: (Buffer | ReadStream);
-    if (!Buffer.isBuffer(fileOrPath)) {
-      if (typeof remotePath === 'undefined') {
-        remotePath = parse(fileOrPath).base;
-      }
-      file = createReadStream(fileOrPath);
-    } else {
-      file = fileOrPath;
-    }
+	async delete(path?: string): Promise<FetchResponse<any>> {
+		const url = new URL(path || "", this.baseURL);
 
-    return await this.client({
-      method: 'PUT',
-      url: remotePath,
-      data: file
-    });
-  }
+		try {
+			const response = await fetch(url.toString(), {
+				method: "DELETE",
+				headers: this.headers,
+			});
 
-  download(filePath: string, responseType?: ResponseType) : AxiosPromise<any> {
-    return this.client({
-      method: 'GET',
-      url: filePath,
-      responseType: responseType || 'arraybuffer' 
-    })
-  }
+			if (!response.ok) {
+				throw new Error(`HTTP error! Status: ${response.status}`);
+			}
 
+			const data = await response.text();
+
+			return {
+				data,
+				status: response.status,
+				statusText: response.statusText,
+				headers: headersToRecord(response.headers),
+				config: { url: url.toString(), method: "DELETE" },
+			};
+		} catch (error) {
+			throw error;
+		}
+	}
+
+	async upload(fileOrPath: Buffer | string, remotePath?: string): Promise<FetchResponse<any>> {
+		let file: Buffer;
+
+		if (!Buffer.isBuffer(fileOrPath)) {
+			if (typeof remotePath === "undefined") {
+				remotePath = parse(fileOrPath).base;
+			}
+
+			const chunks: Buffer[] = [];
+			const stream = createReadStream(fileOrPath);
+
+			await new Promise<void>((resolve, reject) => {
+				stream.on("data", chunk => {
+					if (Buffer.isBuffer(chunk)) {
+						chunks.push(chunk);
+					} else {
+						chunks.push(Buffer.from(chunk as unknown as Uint8Array));
+					}
+				});
+				stream.on("error", err => reject(err));
+				stream.on("end", () => resolve());
+			});
+
+			file = Buffer.concat(chunks);
+		} else {
+			file = fileOrPath;
+		}
+
+		const url = new URL(remotePath || "", this.baseURL);
+
+		try {
+			const response = await fetch(url.toString(), {
+				method: "PUT",
+				headers: this.headers,
+				body: file,
+			});
+
+			if (!response.ok) {
+				throw new Error(`HTTP error! Status: ${response.status}`);
+			}
+
+			const data = await response.text();
+
+			return {
+				data,
+				status: response.status,
+				statusText: response.statusText,
+				headers: headersToRecord(response.headers),
+				config: { url: url.toString(), method: "PUT" },
+			};
+		} catch (error) {
+			throw error;
+		}
+	}
+
+	async download(filePath: string, responseType?: ResponseType): Promise<FetchResponse<any>> {
+		const url = new URL(filePath, this.baseURL);
+
+		try {
+			const response = await fetch(url.toString(), {
+				method: "GET",
+				headers: this.headers,
+			});
+
+			if (!response.ok) {
+				throw new Error(`HTTP error! Status: ${response.status}`);
+			}
+
+			let data;
+
+			switch (responseType) {
+				case "arraybuffer":
+					data = await response.arrayBuffer();
+					break;
+				case "blob":
+					data = await response.blob();
+					break;
+				case "json":
+					data = await response.json();
+					break;
+				case "text":
+					data = await response.text();
+					break;
+				case "stream":
+					data = response.body;
+					break;
+				default:
+					data = await response.text();
+			}
+
+			return {
+				data,
+				status: response.status,
+				statusText: response.statusText,
+				headers: headersToRecord(response.headers),
+				config: { url: url.toString(), method: "GET", responseType },
+			};
+		} catch (error) {
+			throw error;
+		}
+	}
 }
